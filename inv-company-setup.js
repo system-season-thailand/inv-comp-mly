@@ -810,8 +810,8 @@ function processInvoiceData(data) {
             if (location && dateRange) {
                 const [_, checkOutDate] = dateRange.split(" - "); // Extract checkout date
 
-                // Normalize specific cities to "Jakarta"
-                const normalizedLocation = ["Puncak", "Bandung", "Lombok"].includes(location) ? "Jakarta" : location;
+                // Normalize specific cities to "Kuala Lumpur"
+                const normalizedLocation = ["Genting"].includes(location) ? "Kuala Lumpur" : location;
 
                 locations.push(normalizedLocation);
                 checkOutDates.push(checkOutDate);
@@ -822,15 +822,15 @@ function processInvoiceData(data) {
         let lastFlightDate = null;
 
         for (let i = 0; i < locations.length - 1; i++) {
-            if (locations[i] === "Jakarta" && locations[i + 1] !== "Jakarta") {
-                firstFlightDate = checkOutDates[i]; // Leaving Jakarta
+            if (locations[i] === "Kuala Lumpur" && locations[i + 1] !== "Kuala Lumpur") {
+                firstFlightDate = checkOutDates[i]; // Leaving Kuala Lumpur
             }
-            if (locations[i] !== "Jakarta" && locations[i + 1] === "Jakarta") {
-                lastFlightDate = checkOutDates[i]; // Returning to Jakarta
+            if (locations[i] !== "Kuala Lumpur" && locations[i + 1] === "Kuala Lumpur") {
+                lastFlightDate = checkOutDates[i]; // Returning to Kuala Lumpur
             }
         }
 
-        // If no flight out of Jakarta is found, return N/A
+        // If no flight out of Kuala Lumpur is found, return N/A
         if (!firstFlightDate && lastFlightDate) {
             const [day, month, year] = lastFlightDate.split(" ");
             return `${day} ${month} ${year}`;
@@ -864,15 +864,16 @@ function processInvoiceData(data) {
         const hotelLocationElements = document.querySelectorAll(".hotel_location_value_class");
         let locations = Array.from(hotelLocationElements).map(el => el.innerText.trim());
 
-        // Normalize specific cities to "Jakarta"
+        // Normalize specific cities to "Kuala Lumpur"
         locations = locations.map(loc =>
-            ["Puncak", "Bandung", "Lombok"].includes(loc) ? "Jakarta" : loc
+            ["Genting"].includes(loc) ? "Kuala Lumpur" : loc
         );
 
         // Convert city names to airport codes
         const cityToAirport = {
-            "Jakarta": "CGK",
-            "Bali": "DPS"
+            "Kuala Lumpur": "KUL",
+            "Langkawi": "LGK",
+            "Penang": "PEN",
         };
 
         let airportCodes = locations.map(loc => cityToAirport[loc] || loc);
@@ -1039,9 +1040,9 @@ function processInvoiceData(data) {
                 const routeText = flightDestinationElement.innerText.trim();
                 // Map airport codes to city names
                 const airportToCity = {
-                    "CGK": "Jakarta",
-                    "DPS": "Bali",
-                    "LOP": "Lombok"
+                    "KUL": "Kuala Lumpur",
+                    "LGK": "Langkawi",
+                    "Penang": "PEN",
                 };
                 // Extract airport codes from route (handle "BKK-HKT, HKT-BKK" -> extract unique codes)
                 const uniqueAirportCodes = new Set();
@@ -1371,7 +1372,7 @@ function processInvoiceData(data) {
     );
 
     setupFloatingOptions(
-        ["Jakarta", "Puncak", "Bali", "Bandung", "Lombok"],
+        ["Kuala Lumpur", "Genting", "Langkawi", "Penang"],
         "location_text_options_class",
         option => option
     );
@@ -1383,7 +1384,7 @@ function processInvoiceData(data) {
     );
 
     setupFloatingOptions(
-        ["CGK-DPS\nRETURN", "CGK-DPS", "DPS-CGK"],
+        ["KUL-LGK\nRETURN", "KUL-LGK", "LGK-KUL"],
         "flight_destination_text_options_class",
         option => option
     );
@@ -1580,7 +1581,7 @@ function setupFloatingOptions(options, targetClass, formatOption) {
 /* Transpotation Cities Options */
 function setupTransportationCitiesOptions() {
     // Define the flight amount options
-    const FlightDestinations = ["Jakarta", "Puncak", "Bali", "Bandung", "Lombok"];
+    const FlightDestinations = ["Kuala Lumpur", "Genting", "Langkawi", "Penang"];
     const colors = ["darkorange", "darkred", "darkblue", "darkgreen", "gray"]; // Array of dark background colors
 
     // Create the floating options menu
@@ -1810,7 +1811,7 @@ function setupDuplicateOptions(targetClass, parentClass) {
             );
 
             setupFloatingOptions(
-                ["Jakarta", "Puncak", "Bali", "Bandung", "Lombok"],
+                ["Kuala Lumpur", "Genting", "Langkawi", "Penang"],
                 "location_text_options_class",
                 option => option
             );
@@ -1822,7 +1823,7 @@ function setupDuplicateOptions(targetClass, parentClass) {
             );
 
             setupFloatingOptions(
-                ["CGK-DPS\nRETURN", "CGK-DPS", "DPS-CGK"],
+                ["KUL-LGK\nRETURN", "KUL-LGK", "LGK-KUL"],
                 "flight_destination_text_options_class",
                 option => option
             );
@@ -1861,7 +1862,7 @@ function setupDuplicateOptions(targetClass, parentClass) {
             );
 
             setupFloatingOptions(
-                ["Jakarta", "Puncak", "Bali", "Bandung", "Lombok"],
+                ["Kuala Lumpur", "Genting", "Langkawi", "Penang"],
                 "location_text_options_class",
                 option => option
             );
@@ -1873,7 +1874,7 @@ function setupDuplicateOptions(targetClass, parentClass) {
             );
 
             setupFloatingOptions(
-                ["CGK-DPS\nRETURN", "CGK-DPS", "DPS-CGK"],
+                ["KUL-LGK\nRETURN", "KUL-LGK", "LGK-KUL"],
                 "flight_destination_text_options_class",
                 option => option
             );
@@ -1915,7 +1916,7 @@ function setupDuplicateOptions(targetClass, parentClass) {
                 );
 
                 setupFloatingOptions(
-                    ["Jakarta", "Puncak", "Bali", "Bandung", "Lombok"],
+                    ["Kuala Lumpur", "Genting", "Langkawi", "Penang"],
                     "location_text_options_class",
                     option => option
                 );
@@ -1927,7 +1928,7 @@ function setupDuplicateOptions(targetClass, parentClass) {
                 );
 
                 setupFloatingOptions(
-                    ["CGK-DPS\nRETURN", "CGK-DPS", "DPS-CGK"],
+                    ["KUL-LGK\nRETURN", "KUL-LGK", "LGK-KUL"],
                     "flight_destination_text_options_class",
                     option => option
                 );

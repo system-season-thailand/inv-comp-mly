@@ -339,7 +339,7 @@ const importContentForSelectedName = async (clickedGoogleSheetDataName) => {
             option => option
         );
         setupFloatingOptions(
-            ["Jakarta", "Puncak", "Bali", "Bandung", "Lombok"],
+            ["Kuala Lumpur", "Genting", "Langkawi", "Penang"],
             "location_text_options_class",
             option => option
         );
@@ -349,7 +349,7 @@ const importContentForSelectedName = async (clickedGoogleSheetDataName) => {
             option => `${option} Person`
         );
         setupFloatingOptions(
-            ["CGK-DPS\nRETURN", "CGK-DPS", "DPS-CGK"],
+            ["KUL-LGK\nRETURN", "KUL-LGK", "LGK-KUL"],
             "flight_destination_text_options_class",
             option => option
         );
