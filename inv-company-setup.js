@@ -633,7 +633,17 @@ function processInvoiceData(data) {
     /* Pass all filtered text to a function to extract the data */
     const { hotels, flights, transport, visa, total } = extractData(data);
 
-
+    // Detailed console logging when data is pasted in dataInput (for flight/location follow-up)
+    console.log("========== DataInput: processing pasted data ==========");
+    console.log("[DataInput] Raw data length:", data.length, "characters, lines:", data.trim().split("\n").length);
+    console.log("[DataInput] Extracted hotels count:", hotels.length);
+    if (hotels.length) {
+        console.log("[DataInput] Hotel locations (order):", hotels.map(h => h.hotelLocation));
+    }
+    console.log("[DataInput] Flights object:", flights ? { startDate: flights.startDate, endDate: flights.endDate, quantity: flights.quantity, route: flights.route } : null);
+    if (flights) {
+        flights._logFlightDestination = true; // Enable detailed flight destination logging in getFlightDestination
+    }
 
     document.getElementById("invoice_company_main_table_div_id").innerHTML = "";
 
@@ -811,7 +821,7 @@ function processInvoiceData(data) {
                 const [_, checkOutDate] = dateRange.split(" - "); // Extract checkout date
 
                 // Normalize specific cities to "Kuala Lumpur"
-                const normalizedLocation = ["Genting"].includes(location) ? "Kuala Lumpur" : location;
+                const normalizedLocation = ["Genting", "Selangor"].includes(location) ? "Kuala Lumpur" : location;
 
                 locations.push(normalizedLocation);
                 checkOutDates.push(checkOutDate);
@@ -860,33 +870,69 @@ function processInvoiceData(data) {
 
 
 
-    const getFlightDestination = () => {
+    const getFlightDestination = (logToConsole = false) => {
         const hotelLocationElements = document.querySelectorAll(".hotel_location_value_class");
         let locations = Array.from(hotelLocationElements).map(el => el.innerText.trim());
 
-        // Normalize specific cities to "Kuala Lumpur"
-        locations = locations.map(loc =>
-            ["Genting"].includes(loc) ? "Kuala Lumpur" : loc
-        );
+        if (logToConsole) {
+            console.log("[Flight destination] Raw locations from hotel rows:", [...locations]);
+        }
 
-        // Convert city names to airport codes
+        // Normalize: Selangor/Genting -> Kuala Lumpur; fix case for known cities (e.g. "penang" -> "Penang")
+        const canonicalCity = (name) => {
+            const lower = (name || "").trim().toLowerCase();
+            const map = { "kuala lumpur": "Kuala Lumpur", "langkawi": "Langkawi", "penang": "Penang", "pahang": "Pahang", "selangor": "Kuala Lumpur", "genting": "Kuala Lumpur" };
+            return map[lower] || name;
+        };
+        locations = locations.map(loc => canonicalCity(loc));
+
+        if (logToConsole) {
+            console.log("[Flight destination] Normalized locations:", [...locations]);
+        }
+
+        // City names to airport codes. Pahang has no airport; KUL-PEN / PEN-KUL used for Pahang legs.
         const cityToAirport = {
             "Kuala Lumpur": "KUL",
             "Langkawi": "LGK",
             "Penang": "PEN",
         };
 
-        let airportCodes = locations.map(loc => cityToAirport[loc] || loc);
-
-        // Construct the flight destination string for every transition
+        // Build segments: handle Pahang (no airport) — Pahang→Kuala Lumpur = PEN-KUL, Kuala Lumpur→Pahang = KUL-PEN
         let flightDestinations = [];
-        for (let i = 0; i < airportCodes.length - 1; i++) {
-            if (airportCodes[i] !== airportCodes[i + 1]) {
-                flightDestinations.push(`${airportCodes[i]}-${airportCodes[i + 1]}`);
+        for (let i = 0; i < locations.length - 1; i++) {
+            const from = locations[i];
+            const to = locations[i + 1];
+            if (from === to) {
+                if (logToConsole) console.log(`  Segment ${i}: ${from} → ${to} (same city, skip)`);
+                continue;
+            }
+            if (from === "Pahang" && to === "Kuala Lumpur") {
+                flightDestinations.push("PEN-KUL");
+                if (logToConsole) console.log(`  Segment ${i}: ${from} → ${to} => PEN-KUL (Pahang has no airport; use PEN for leg to KUL)`);
+                continue;
+            }
+            if (from === "Kuala Lumpur" && to === "Pahang") {
+                flightDestinations.push("KUL-PEN");
+                if (logToConsole) console.log(`  Segment ${i}: ${from} → ${to} => KUL-PEN (Pahang has no airport; use PEN as destination)`);
+                continue;
+            }
+            const fromCode = cityToAirport[from];
+            const toCode = cityToAirport[to];
+            if (fromCode && toCode) {
+                flightDestinations.push(`${fromCode}-${toCode}`);
+                if (logToConsole) console.log(`  Segment ${i}: ${from} → ${to} => ${fromCode}-${toCode}`);
+            } else {
+                if (logToConsole) console.log(`  Segment ${i}: ${from} → ${to} => (unknown airport code, skip). fromCode=${fromCode}, toCode=${toCode}`);
             }
         }
 
-        return flightDestinations.join("<br>");
+        const result = flightDestinations.join("<br>");
+        if (logToConsole) {
+            console.log("[Flight destination] Segments array:", flightDestinations);
+            console.log("[Flight destination] Final route string (HTML):", result);
+            console.log("[Flight destination] Final route (plain):", flightDestinations.join(", "));
+        }
+        return result;
     };
 
     const parseIndoMonthToEnglish = (month) => {
@@ -973,15 +1019,23 @@ function processInvoiceData(data) {
             }
         }
 
-        // Determine flight destination - use stored route if available
+        // Determine flight destination: prefer route computed from hotel locations (full itinerary)
+        // so we get e.g. KUL-LGK, LGK-PEN, PEN-KUL; only use stored route when no hotels or computed is empty
         let getFlightDestinationText = "";
-        if (data.route) {
-            getFlightDestinationText = `<span class="flight_destination_text_options_class">${data.route}</span>`;
-        } else {
-            getFlightDestinationText = getFlightDestination();
-            if (getFlightDestinationText === '') {
-                getFlightDestinationText = '<span class="flight_destination_text_options_class red_text_color_class">N/A</span>'
+        const logFlightDestination = !!data._logFlightDestination;
+        const computedRoute = getFlightDestination(logFlightDestination);
+        if (computedRoute !== "") {
+            getFlightDestinationText = `<span class="flight_destination_text_options_class">${computedRoute}</span>`;
+            if (logFlightDestination) {
+                console.log("[Flight destination] Using route computed from hotel locations:", computedRoute.replace(/<br>/g, ", "));
             }
+        } else if (data.route) {
+            getFlightDestinationText = `<span class="flight_destination_text_options_class">${data.route}</span>`;
+            if (logFlightDestination) {
+                console.log("[Flight destination] No hotel locations; using stored route from pasted data:", data.route);
+            }
+        } else {
+            getFlightDestinationText = '<span class="flight_destination_text_options_class red_text_color_class">N/A</span>';
         }
 
         const rowDiv = document.createElement("div");
@@ -1038,11 +1092,11 @@ function processInvoiceData(data) {
             const flightDestinationElement = document.querySelector("#flight_tickets_row_div_id .flight_destination_text_options_class");
             if (flightDestinationElement) {
                 const routeText = flightDestinationElement.innerText.trim();
-                // Map airport codes to city names
+                // Map airport codes to city names (code -> city)
                 const airportToCity = {
                     "KUL": "Kuala Lumpur",
                     "LGK": "Langkawi",
-                    "Penang": "PEN",
+                    "PEN": "Penang",
                 };
                 // Extract airport codes from route (handle "BKK-HKT, HKT-BKK" -> extract unique codes)
                 const uniqueAirportCodes = new Set();
@@ -1372,7 +1426,7 @@ function processInvoiceData(data) {
     );
 
     setupFloatingOptions(
-        ["Kuala Lumpur", "Genting", "Langkawi", "Penang"],
+        ["Kuala Lumpur", "Genting", "Langkawi", "Penang", "Pahang"],
         "location_text_options_class",
         option => option
     );
@@ -1384,7 +1438,7 @@ function processInvoiceData(data) {
     );
 
     setupFloatingOptions(
-        ["KUL-LGK\nRETURN", "KUL-LGK", "LGK-KUL"],
+        ["KUL-LGK\nRETURN", "KUL-LGK", "LGK-KUL", "LGK-PEN", "PEN-KUL", "KUL-PEN"],
         "flight_destination_text_options_class",
         option => option
     );
@@ -1581,7 +1635,7 @@ function setupFloatingOptions(options, targetClass, formatOption) {
 /* Transpotation Cities Options */
 function setupTransportationCitiesOptions() {
     // Define the flight amount options
-    const FlightDestinations = ["Kuala Lumpur", "Genting", "Langkawi", "Penang"];
+    const FlightDestinations = ["Kuala Lumpur", "Genting", "Langkawi", "Penang", "Pahang"];
     const colors = ["darkorange", "darkred", "darkblue", "darkgreen", "gray"]; // Array of dark background colors
 
     // Create the floating options menu
@@ -1811,7 +1865,7 @@ function setupDuplicateOptions(targetClass, parentClass) {
             );
 
             setupFloatingOptions(
-                ["Kuala Lumpur", "Genting", "Langkawi", "Penang"],
+                ["Kuala Lumpur", "Genting", "Langkawi", "Penang", "Pahang"],
                 "location_text_options_class",
                 option => option
             );
@@ -1823,7 +1877,7 @@ function setupDuplicateOptions(targetClass, parentClass) {
             );
 
             setupFloatingOptions(
-                ["KUL-LGK\nRETURN", "KUL-LGK", "LGK-KUL"],
+                ["KUL-LGK\nRETURN", "KUL-LGK", "LGK-KUL", "LGK-PEN", "PEN-KUL", "KUL-PEN"],
                 "flight_destination_text_options_class",
                 option => option
             );
@@ -1833,7 +1887,7 @@ function setupDuplicateOptions(targetClass, parentClass) {
             setupTransportationCitiesOptions();
 
 
-            // Call the function to apply the duplicate elements functionality
+            // Call a function to apply the duplicate elements functionality
             setupDuplicateOptions("duplicate_this_element_class", "invoice_company_row_div_class");
 
         }
@@ -1916,7 +1970,7 @@ function setupDuplicateOptions(targetClass, parentClass) {
                 );
 
                 setupFloatingOptions(
-                    ["Kuala Lumpur", "Genting", "Langkawi", "Penang"],
+                    ["Kuala Lumpur", "Genting", "Langkawi", "Penang", "Pahang"],
                     "location_text_options_class",
                     option => option
                 );
@@ -1928,7 +1982,7 @@ function setupDuplicateOptions(targetClass, parentClass) {
                 );
 
                 setupFloatingOptions(
-                    ["KUL-LGK\nRETURN", "KUL-LGK", "LGK-KUL"],
+                    ["KUL-LGK\nRETURN", "KUL-LGK", "LGK-KUL", "LGK-PEN", "PEN-KUL", "KUL-PEN"],
                     "flight_destination_text_options_class",
                     option => option
                 );
